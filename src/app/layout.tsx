@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+// @ts-ignore: allow side-effect import of CSS without type declarations
 import "./globals.css";
+import Provider from "./Provider";
+import { ClerkProvider } from "@clerk/nextjs";
+import { Toaster } from "@/components/ui/sonner";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,12 +28,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
-    </html>
+	<ClerkProvider>
+		<html lang="en">
+		<body
+			className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+		>
+			<Provider>
+				<Toaster />
+				{children}
+			</Provider>
+		</body>
+		</html>
+	  </ClerkProvider>
   );
 }
+
+
+// @ts-ignore: allow side-effect import of CSS without type declarations
