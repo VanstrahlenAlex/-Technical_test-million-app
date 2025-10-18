@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { supabase } from '@/utils/supabase/client';
 import { useUser } from '@clerk/nextjs';
-import { Loader } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -15,6 +15,7 @@ export default function AddNewListing() {
 	const [coordinates, setCoordinates] = useState<{ lat: number, lng: number } | null>(null);
 	const {user} = useUser();
 	const [loader, setLoader] = useState(false);
+	const router = useRouter();
 
 	const nextHandler = async() => {
 		console.log(selectedAddress, coordinates);
@@ -36,11 +37,13 @@ export default function AddNewListing() {
 			if(data){
 				setLoader(false);
 				toast.success('Listing added successfully!');
+				router.replace('/edit-listing/'+data[0].id)
 			}
 			if(error){
 				setLoader(false);
 				toast.error('Error adding listing. Please try again.');
 			}
+			// 2:03:30
 		// =====SUPABASE FIN=====
 	}
 	return (
@@ -58,7 +61,6 @@ export default function AddNewListing() {
 						onClick={nextHandler}
 					>
 						{loader ? 
-						// <Loader className='animate-spin'/> 	
 						<Spinner  color="white" />
 						: 'Next'}
 					</Button>
