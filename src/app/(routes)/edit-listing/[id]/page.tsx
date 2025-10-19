@@ -61,6 +61,7 @@ export default function EditListing(
 	const [images, setImages] = useState([]);
 	const [loading, setLoading] = useState(false);
 
+
 	useEffect(() => {
 		// console.log("params",params.id);
 		user && verifyUserRecord()
@@ -96,9 +97,9 @@ export default function EditListing(
 			.select()
 		console.log(data);
 		if (data) {
-
 			toast.success("The property was updated successfully");
 			setLoading(false);
+			router.push('/')
 		}
 		for (const image of images) {
 			setLoading(true);
@@ -154,6 +155,16 @@ export default function EditListing(
 					initialValues={{
 						type: listing?.type || '',
 						propertyType: listing?.propertyType || '',
+						bedroom: listing?.bedroom || '',
+						bathroom: listing?.bathroom || '',
+						builthIn: listing?.builthIn || '',
+						dateSale: listing?.dateSale || '',
+						parking: listing?.parking || '',
+						lotSize: listing?.lotSize || '',
+						area: listing?.area || '',
+						price: listing?.price || '',
+						hoa: listing?.hoa || '',
+						description: listing?.description || '',
 						profileImage: user?.imageUrl,
 						fullName: user?.fullName
 					}}
@@ -165,7 +176,8 @@ export default function EditListing(
 					{({
 						values,
 						handleChange,
-						handleSubmit
+						handleSubmit,
+						setFieldValue
 					}) => (
 						<form onSubmit={handleSubmit}>
 							<div className='p-8 rounded-lg shadow-md'>
@@ -174,7 +186,7 @@ export default function EditListing(
 										<h2 className='text-lg text-slate-500'>Rent or Sell?</h2>
 										<RadioGroup
 											value={values.type}
-											onValueChange={(v) => values.type = v}
+											onValueChange={(v) => setFieldValue('type', v)}
 										>
 											<div className="flex items-center space-x-2">
 												<RadioGroupItem value="Rent" id="Rent" />
@@ -189,9 +201,9 @@ export default function EditListing(
 									<div className='flex flex-col gap-2'>
 										<h2 className='text-lg text-slate-500'>Property Type</h2>
 										<Select
-											onValueChange={(e) => values.propertyType = e}
+											onValueChange={(e) => setFieldValue('propertyType', e)}
 											name='propertyType'
-											value={listing?.propertyType}
+											value={values.propertyType}
 										>
 											<SelectTrigger className="w-[180px]">
 												<SelectValue placeholder="Select Property Type" />
@@ -255,6 +267,7 @@ export default function EditListing(
 												>
 													<CalendarIcon />
 													{date ? format(date, "PPP") : <span>Pick a date</span>}
+													{/* {values.dateSale ? format(new Date(values.dateSale), "PPP") : <span>Pick a date</span>} */}
 												</Button>
 											</PopoverTrigger>
 											<PopoverContent className="w-auto p-0">

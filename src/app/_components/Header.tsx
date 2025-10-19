@@ -29,7 +29,7 @@ export default function Header() {
 
 						<nav className='hidden md:flex gap-8'>
 							{[
-								{ href: '/for-sale', label: 'For Sale' },
+								{ href: '/for-sell', label: 'For Sell' },
 								{ href: '/for-rent', label: 'For Rent' },
 								{ href: '/agent-finder', label: 'Agent Finder' }
 							].map((item) => (
