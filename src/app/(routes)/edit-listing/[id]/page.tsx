@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react'
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-
 import {
 	Select,
 	SelectContent,
@@ -12,10 +11,8 @@ import {
 } from "@/components/ui/select"
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-
 import { format } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
-
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -31,7 +28,6 @@ import { toast } from 'sonner';
 import { useUser } from '@clerk/nextjs';
 import FileUpload from '../_components/FileUpload';
 import { Spinner } from '@/components/ui/spinner';
-
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -44,33 +40,21 @@ import {
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
-export default function EditListing(
-	// {params}: { params: { id: string } }
-) {
+export default function EditListing() {
 	const [date, setDate] = React.useState<Date>();
-	const today = new Date()
-	const futureDate = new Date()
-	futureDate.setFullYear(today.getFullYear() + 10)
-
 	const params = useParams();
-	// console.log("params antes del ",params)
-
 	const { user } = useUser();
 	const router = useRouter()
-	const [listing, setListing] = useState([]);
+	const [listing, setListing] = useState<any>(null); // Cambiado a null
 	const [images, setImages] = useState([]);
 	const [loading, setLoading] = useState(false);
 
-
 	useEffect(() => {
-		// console.log("params",params.id);
 		user && verifyUserRecord()
-
 	}, [user]);
 
 	const verifyUserRecord = async () => {
 		const email = user?.primaryEmailAddress?.emailAddress;
-		// if we don't have an email, don't call supabase
 		if (!email) return;
 
 		const { data, error } = await supabase
@@ -78,10 +62,14 @@ export default function EditListing(
 			.select('*, listingImages(listing_id, url)')
 			.eq('createdBy', email)
 			.eq('id', params.id)
-		console.log(data);
+		console.log("Datos obtenidos:", data);
 
-		if (data) {
+		if (data && data.length > 0) {
 			setListing(data[0])
+			// Si hay fecha en los datos, establecerla en el estado local
+			if (data[0].dateSale) {
+				setDate(new Date(data[0].dateSale));
+			}
 		}
 		if (Array.isArray(data) && data.length <= 0) {
 			router.replace('/')
@@ -90,60 +78,85 @@ export default function EditListing(
 
 	const onSubmitHandler = async (formValue: any) => {
 		setLoading(true);
+		console.log("Enviando datos:", formValue);
+
+		// Incluir la fecha en el formValue si existe
+		// if (date) {
+		// 	formValue.dateSale = format(date, 'yyyy-MM-dd');
+		// }
+		formValue.dateSale = date ? format(date, 'yyyy-MM-dd') : null;
+		
 		const { data, error } = await supabase
 			.from('listing')
 			.update(formValue)
 			.eq('id', params.id)
 			.select()
-		console.log(data);
+
+		console.log("Respuesta de Supabase - data:", data);
+		console.log("Respuesta de Supabase - error:", error);
+
+		if (error) {
+			console.error("Error detallado:", error);
+			toast.error("Error updating property: " + error.message);
+			setLoading(false);
+			return;
+		}
+
 		if (data) {
 			toast.success("The property was updated successfully");
-			setLoading(false);
-			router.push('/')
-		}
-		for (const image of images) {
-			setLoading(true);
-			const file = image;
-			const fileName = Date.now().toString();
-			const fileExt = fileName.split('').pop();
-			const { data, error } = await supabase.storage
-				.from('listingImages')
-				.upload(`${fileName}`, file, {
-					contentType: `image/${fileExt}`,
-					upsert: false
-				});
-			if (error) {
-				setLoading(false)
-				toast.error('Error while uploading images')
-				// toast.error(error)
-			}
-			else {
 
-				const imageUrl = process.env.NEXT_PUBLIC_IMAGE_URL + fileName;
-				const { data, error } = await supabase
-					.from('listingImages')
-					.insert([
-						{ url: imageUrl, listing_id: params.id }
-					])
-					.select();
-				if (data) { setLoading(false); }
-				if (error) { setLoading(false) }
+			// Solo subir imágenes si hay imágenes nuevas
+			if (images && images.length > 0) {
+				for (const image of images) {
+					const file = image;
+					const fileName = Date.now().toString() + Math.random().toString(36).substring(2);
+					const fileExt = file.name.split('.').pop();
+					const { data: uploadData, error: uploadError } = await supabase.storage
+						.from('listingImages')
+						.upload(`${fileName}`, file, {
+							contentType: `image/${fileExt}`,
+							upsert: false
+						});
+
+					if (uploadError) {
+						toast.error('Error while uploading images: ' + uploadError.message);
+					} else {
+						const imageUrl = process.env.NEXT_PUBLIC_IMAGE_URL + fileName;
+						const { error: insertError } = await supabase
+							.from('listingImages')
+							.insert([
+								{ url: imageUrl, listing_id: params.id }
+							]);
+						if (insertError) {
+							toast.error('Error saving image to database: ' + insertError.message);
+						}
+					}
+				}
 			}
 			setLoading(false);
+			router.push('/'); // Cambia esto a tu ruta principal
 		}
 	}
+
 	const publishBtnhandler = async () => {
 		setLoading(true)
 		const { data, error } = await supabase
 			.from('listing')
-			.update({ active: 'true' })
+			.update({ active: true }) // Cambiado a boolean
 			.eq('id', params?.id)
 			.select()
 
-			if(data){
-				setLoading(false)
-				toast.success("Listing Published and Saved!")
-			}
+		if (error) {
+			toast.error("Error publishing listing: " + error.message);
+			setLoading(false);
+			return;
+		}
+
+		if (data) {
+			setLoading(false)
+			toast.success("Listing Published and Saved!")
+			router.push('/');
+		}
 	}
 
 	return (
@@ -158,7 +171,7 @@ export default function EditListing(
 						bedroom: listing?.bedroom || '',
 						bathroom: listing?.bathroom || '',
 						builthIn: listing?.builthIn || '',
-						dateSale: listing?.dateSale || '',
+						dateSale: listing?.dateSale || null,
 						parking: listing?.parking || '',
 						lotSize: listing?.lotSize || '',
 						area: listing?.area || '',
@@ -169,7 +182,7 @@ export default function EditListing(
 						fullName: user?.fullName
 					}}
 					onSubmit={(values) => {
-						console.log(values);
+						console.log("Valores del formulario:", values);
 						onSubmitHandler(values)
 					}}
 				>
@@ -216,8 +229,9 @@ export default function EditListing(
 											</SelectContent>
 										</Select>
 									</div>
-
 								</div>
+
+								{/* CAMBIOS PRINCIPALES AQUÍ - usar value en lugar de defaultValue */}
 								<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pt-4'>
 									<div className='flex flex-col gap-2'>
 										<h2 className='text-lg text-slate-500'>Bedrooms</h2>
@@ -226,7 +240,7 @@ export default function EditListing(
 											placeholder='e.g. 3'
 											name='bedroom'
 											onChange={handleChange}
-											defaultValue={listing?.bedroom}
+											value={values.bedroom} // Cambiado a value
 										/>
 									</div>
 									<div className='flex flex-col gap-2'>
@@ -236,7 +250,7 @@ export default function EditListing(
 											placeholder='e.g. 2'
 											name='bathroom'
 											onChange={handleChange}
-											defaultValue={listing?.bathroom}
+											value={values.bathroom} // Cambiado a value
 										/>
 									</div>
 									<div className='flex flex-col gap-2'>
@@ -246,28 +260,22 @@ export default function EditListing(
 											placeholder='e.g. 2020'
 											name='builthIn'
 											onChange={handleChange}
-											defaultValue={listing?.builthIn}
-
+											value={values.builthIn} // Cambiado a value
 										/>
 									</div>
-
 								</div>
+
 								<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pt-4'>
 									<div className='flex flex-col gap-2'>
-										<h2 className='text-lg text-slate-500'>Date Sale</h2>
+										<h2 className='text-lg text-slate-500'>Date Sale or Rent</h2>
 										<Popover>
 											<PopoverTrigger asChild>
 												<Button
 													variant="outline"
-													data-empty={!date}
-													className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
-													name='dateSale'
-													onChange={handleChange}
-													defaultValue={listing?.dateSale}
+													className="w-full justify-start text-left font-normal"
 												>
 													<CalendarIcon />
 													{date ? format(date, "PPP") : <span>Pick a date</span>}
-													{/* {values.dateSale ? format(new Date(values.dateSale), "PPP") : <span>Pick a date</span>} */}
 												</Button>
 											</PopoverTrigger>
 											<PopoverContent className="w-auto p-0">
@@ -276,7 +284,6 @@ export default function EditListing(
 													selected={date}
 													onSelect={setDate}
 													captionLayout="dropdown"
-
 												/>
 											</PopoverContent>
 										</Popover>
@@ -288,7 +295,7 @@ export default function EditListing(
 											placeholder='e.g. 2'
 											name='parking'
 											onChange={handleChange}
-											defaultValue={listing?.parking}
+											value={values.parking} // Cambiado a value
 										/>
 									</div>
 									<div className='flex flex-col gap-2'>
@@ -298,10 +305,11 @@ export default function EditListing(
 											placeholder='e.g. 2'
 											name='lotSize'
 											onChange={handleChange}
-											defaultValue={listing?.lotSize}
+											value={values.lotSize} // Cambiado a value
 										/>
 									</div>
 								</div>
+
 								<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pt-4'>
 									<div className='flex flex-col gap-2'>
 										<h2 className='text-lg text-slate-500'>Area (Sq.Ft)</h2>
@@ -310,7 +318,7 @@ export default function EditListing(
 											placeholder='e.g. 1900'
 											name='area'
 											onChange={handleChange}
-											defaultValue={listing?.area}
+											value={values.area} // Cambiado a value
 										/>
 									</div>
 									<div className='flex flex-col gap-2'>
@@ -320,7 +328,7 @@ export default function EditListing(
 											placeholder='50000'
 											name='price'
 											onChange={handleChange}
-											defaultValue={listing?.price}
+											value={values.price} // Cambiado a value
 										/>
 									</div>
 									<div className='flex flex-col gap-2'>
@@ -330,31 +338,33 @@ export default function EditListing(
 											placeholder='2000'
 											name='hoa'
 											onChange={handleChange}
-											defaultValue={listing?.hoa}
+											value={values.hoa} // Cambiado a value
 										/>
 									</div>
 								</div>
+
 								<div className='flex flex-col gap-2 pt-4'>
 									<h2 className='text-lg text-slate-500'>Description</h2>
 									<Textarea
 										placeholder='Write a brief description of the property...'
 										name='description'
 										onChange={handleChange}
-										defaultValue={listing?.description}
+										value={values.description} // Cambiado a value
 									/>
 								</div>
+
 								<div className='pt-4 '>
 									<h2 className='font-lg text-gray-500 my-2'>Upload Property Images</h2>
 									<FileUpload
 										setImages={(value: any) => setImages(value)}
-										imageList={listing.listingImages}
+										imageList={listing?.listingImages || []}
 									/>
 								</div>
+
 								<div className='flex gap-7 justify-end mt-4'>
-									<Button disabled={loading} variant={"outline"} className='text-gray-500'>
-										{loading ? <Spinner /> : 'Save '}
+									<Button type="submit" disabled={loading} variant={"outline"} className='text-gray-500'>
+										{loading ? <Spinner /> : 'Save'}
 									</Button>
-									
 
 									<AlertDialog>
 										<AlertDialogTrigger asChild>
@@ -371,11 +381,9 @@ export default function EditListing(
 											</AlertDialogHeader>
 											<AlertDialogFooter>
 												<AlertDialogCancel>Cancel</AlertDialogCancel>
-												<AlertDialogAction
-													onClick={() =>publishBtnhandler()}
-												>
+												<AlertDialogAction onClick={publishBtnhandler}>
 													{loading ? <Spinner /> : "Continue"}
-													</AlertDialogAction>
+												</AlertDialogAction>
 											</AlertDialogFooter>
 										</AlertDialogContent>
 									</AlertDialog>
@@ -388,3 +396,396 @@ export default function EditListing(
 		</div>
 	)
 }
+
+// "use client";
+// import React, { useEffect, useState } from 'react'
+// import { Label } from "@/components/ui/label"
+// import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+
+// import {
+// 	Select,
+// 	SelectContent,
+// 	SelectItem,
+// 	SelectTrigger,
+// 	SelectValue,
+// } from "@/components/ui/select"
+// import { Input } from '@/components/ui/input';
+// import { Textarea } from '@/components/ui/textarea';
+
+// import { format } from "date-fns"
+// import { Calendar as CalendarIcon } from "lucide-react"
+
+// import { cn } from "@/lib/utils"
+// import { Button } from "@/components/ui/button"
+// import { Calendar } from "@/components/ui/calendar"
+// import {
+// 	Popover,
+// 	PopoverContent,
+// 	PopoverTrigger,
+// } from "@/components/ui/popover"
+// import { Formik } from 'formik';
+// import { useParams, useRouter } from 'next/navigation';
+// import { supabase } from '@/utils/supabase/client';
+// import { toast } from 'sonner';
+// import { useUser } from '@clerk/nextjs';
+// import FileUpload from '../_components/FileUpload';
+// import { Spinner } from '@/components/ui/spinner';
+
+// import {
+// 	AlertDialog,
+// 	AlertDialogAction,
+// 	AlertDialogCancel,
+// 	AlertDialogContent,
+// 	AlertDialogDescription,
+// 	AlertDialogFooter,
+// 	AlertDialogHeader,
+// 	AlertDialogTitle,
+// 	AlertDialogTrigger,
+// } from "@/components/ui/alert-dialog"
+
+// export default function EditListing(
+// 	// {params}: { params: { id: string } }
+// ) {
+// 	const [date, setDate] = React.useState<Date>();
+// 	const today = new Date()
+// 	const futureDate = new Date()
+// 	futureDate.setFullYear(today.getFullYear() + 10)
+
+// 	const params = useParams();
+// 	// console.log("params antes del ",params)
+
+// 	const { user } = useUser();
+// 	const router = useRouter()
+// 	const [listing, setListing] = useState<any>(null);
+// 	const [images, setImages] = useState([]);
+// 	const [loading, setLoading] = useState(false);
+
+
+// 	useEffect(() => {
+// 		// console.log("params",params.id);
+// 		user && verifyUserRecord()
+
+// 	}, [user]);
+
+// 	const verifyUserRecord = async () => {
+// 		const email = user?.primaryEmailAddress?.emailAddress;
+// 		// if we don't have an email, don't call supabase
+// 		if (!email) return;
+
+// 		const { data, error } = await supabase
+// 			.from('listing')
+// 			.select('*, listingImages(listing_id, url)')
+// 			.eq('createdBy', email)
+// 			.eq('id', params.id)
+// 		console.log(data);
+
+// 		if (data && data.length > 0) {
+// 			setListing(data[0])
+// 		}
+// 		if (Array.isArray(data) && data.length <= 0) {
+// 			router.replace('/')
+// 		}
+// 	}
+
+// 	const onSubmitHandler = async (formValue: any) => {
+// 		setLoading(true);
+// 		const { data, error } = await supabase
+// 			.from('listing')
+// 			.update(formValue)
+// 			.eq('id', params.id)
+// 			.select()
+
+// 		console.log("data", data);
+
+// 		if (data) {
+// 			toast.success("The property was updated successfully");
+// 			setLoading(false);
+// 			router.push("app/")
+// 		}
+// 		for (const image of images) {
+// 			setLoading(true);
+// 			const file = image;
+// 			const fileName = Date.now().toString();
+// 			const fileExt = fileName.split('').pop();
+// 			const { data, error } = await supabase.storage
+// 				.from('listingImages')
+// 				.upload(`${fileName}`, file, {
+// 					contentType: `image/${fileExt}`,
+// 					upsert: false
+// 				});
+// 			if (error) {
+// 				setLoading(false)
+// 				toast.error('Error while uploading images')
+// 				// toast.error(error)
+// 			}
+// 			else {
+
+// 				const imageUrl = process.env.NEXT_PUBLIC_IMAGE_URL + fileName;
+// 				const { data, error } = await supabase
+// 					.from('listingImages')
+// 					.insert([
+// 						{ url: imageUrl, listing_id: params.id }
+// 					])
+// 					.select();
+// 				if (data) { setLoading(false); }
+// 				if (error) { setLoading(false) }
+// 			}
+// 			setLoading(false);
+// 		}
+// 	}
+// 	const publishBtnhandler = async () => {
+// 		setLoading(true)
+// 		const { data, error } = await supabase
+// 			.from('listing')
+// 			.update({ active: 'true' })
+// 			.eq('id', params?.id)
+// 			.select()
+
+// 			if(data){
+// 				setLoading(false)
+// 				toast.success("Listing Published and Saved!")
+// 			}
+// 	}
+
+// 	return (
+// 		<div className='pt-30'>
+// 			<div className='px-10 md:px-36 my-10 items-center justify-center h-screen'>
+// 				<h2 className='font-bold text-2xl'>Enter some more details about your listing</h2>
+// 				<Formik
+// 					enableReinitialize={true}
+// 					initialValues={{
+// 						type: listing?.type || '',
+// 						propertyType: listing?.propertyType || '',
+// 						bedroom: listing?.bedroom || '',
+// 						bathroom: listing?.bathroom || '',
+// 						builthIn: listing?.builthIn || '',
+// 						dateSale: listing?.dateSale || '',
+// 						parking: listing?.parking || '',
+// 						lotSize: listing?.lotSize || '',
+// 						area: listing?.area || '',
+// 						price: listing?.price || '',
+// 						hoa: listing?.hoa || '',
+// 						description: listing?.description || '',
+// 						profileImage: user?.imageUrl,
+// 						fullName: user?.fullName
+// 					}}
+// 					onSubmit={(values) => {
+// 						console.log(values);
+// 						onSubmitHandler(values)
+// 					}}
+// 				>
+// 					{({
+// 						values,
+// 						handleChange,
+// 						handleSubmit,
+// 						setFieldValue
+// 					}) => (
+// 						<form onSubmit={handleSubmit}>
+// 							<div className='p-8 rounded-lg shadow-md'>
+// 								<div className='grid grid-cols-1 md:grid-cols-3'>
+// 									<div className='flex flex-col gap-2'>
+// 										<h2 className='text-lg text-slate-500'>Rent or Sell?</h2>
+// 										<RadioGroup
+// 											value={values.type}
+// 											onValueChange={(v) => setFieldValue('type', v)}
+// 										>
+// 											<div className="flex items-center space-x-2">
+// 												<RadioGroupItem value="Rent" id="Rent" />
+// 												<Label htmlFor="Rent">Rent</Label>
+// 											</div>
+// 											<div className="flex items-center space-x-2">
+// 												<RadioGroupItem value="Sell" id="Sell" />
+// 												<Label htmlFor="Sell">Sell</Label>
+// 											</div>
+// 										</RadioGroup>
+// 									</div>
+// 									<div className='flex flex-col gap-2'>
+// 										<h2 className='text-lg text-slate-500'>Property Type</h2>
+// 										<Select
+// 											onValueChange={(e) => setFieldValue('propertyType', e)}
+// 											name='propertyType'
+// 											value={values.propertyType}
+// 										>
+// 											<SelectTrigger className="w-[180px]">
+// 												<SelectValue placeholder="Select Property Type" />
+// 											</SelectTrigger>
+// 											<SelectContent>
+// 												<SelectItem value='none' disabled >--Select type--</SelectItem>
+// 												<SelectItem value="Single_Family_House">Single Family House</SelectItem>
+// 												<SelectItem value="Town_House">Town House</SelectItem>
+// 												<SelectItem value="Condo">Condo</SelectItem>
+// 											</SelectContent>
+// 										</Select>
+// 									</div>
+
+// 								</div>
+// 								<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pt-4'>
+// 									<div className='flex flex-col gap-2'>
+// 										<h2 className='text-lg text-slate-500'>Bedrooms</h2>
+// 										<Input
+// 											type="number"
+// 											placeholder='e.g. 3'
+// 											name='bedroom'
+// 											onChange={handleChange}
+// 											defaultValue={listing?.bedroom}
+// 										/>
+// 									</div>
+// 									<div className='flex flex-col gap-2'>
+// 										<h2 className='text-lg text-slate-500'>Bathrooms</h2>
+// 										<Input
+// 											type="number"
+// 											placeholder='e.g. 2'
+// 											name='bathroom'
+// 											onChange={handleChange}
+// 											defaultValue={listing?.bathroom}
+// 										/>
+// 									</div>
+// 									<div className='flex flex-col gap-2'>
+// 										<h2 className='text-lg text-slate-500'>Year</h2>
+// 										<Input
+// 											type="number"
+// 											placeholder='e.g. 2020'
+// 											name='builthIn'
+// 											onChange={handleChange}
+// 											defaultValue={listing?.builthIn}
+
+// 										/>
+// 									</div>
+
+// 								</div>
+// 								<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pt-4'>
+// 									<div className='flex flex-col gap-2'>
+// 										<h2 className='text-lg text-slate-500'>Date Sale or Rent</h2>
+// 										<Popover>
+// 											<PopoverTrigger asChild>
+// 												<Button
+// 													variant="outline"
+// 													data-empty={!date}
+// 													className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+// 													name='dateSale'
+// 													onChange={handleChange}
+// 													defaultValue={listing?.dateSale}
+// 												>
+// 													<CalendarIcon />
+// 													{date ? format(date, "PPP") : <span>Pick a date</span>}
+// 													{/* {values.dateSale ? format(new Date(values.dateSale), "PPP") : <span>Pick a date</span>} */}
+// 												</Button>
+// 											</PopoverTrigger>
+// 											<PopoverContent className="w-auto p-0">
+// 												<Calendar
+// 													mode="single"
+// 													selected={date}
+// 													onSelect={setDate}
+// 													captionLayout="dropdown"
+
+// 												/>
+// 											</PopoverContent>
+// 										</Popover>
+// 									</div>
+// 									<div className='flex flex-col gap-2'>
+// 										<h2 className='text-lg text-slate-500'>Parking</h2>
+// 										<Input
+// 											type="number"
+// 											placeholder='e.g. 2'
+// 											name='parking'
+// 											onChange={handleChange}
+// 											defaultValue={listing?.parking}
+// 										/>
+// 									</div>
+// 									<div className='flex flex-col gap-2'>
+// 										<h2 className='text-lg text-slate-500'>Lot Size</h2>
+// 										<Input
+// 											type="number"
+// 											placeholder='e.g. 2'
+// 											name='lotSize'
+// 											onChange={handleChange}
+// 											defaultValue={listing?.lotSize}
+// 										/>
+// 									</div>
+// 								</div>
+// 								<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pt-4'>
+// 									<div className='flex flex-col gap-2'>
+// 										<h2 className='text-lg text-slate-500'>Area (Sq.Ft)</h2>
+// 										<Input
+// 											type="number"
+// 											placeholder='e.g. 1900'
+// 											name='area'
+// 											onChange={handleChange}
+// 											defaultValue={listing?.area}
+// 										/>
+// 									</div>
+// 									<div className='flex flex-col gap-2'>
+// 										<h2 className='text-lg text-slate-500'>Selling Price($)</h2>
+// 										<Input
+// 											type="number"
+// 											placeholder='50000'
+// 											name='price'
+// 											onChange={handleChange}
+// 											defaultValue={listing?.price}
+// 										/>
+// 									</div>
+// 									<div className='flex flex-col gap-2'>
+// 										<h2 className='text-lg text-slate-500'>HOA (Per Month)($)</h2>
+// 										<Input
+// 											type="number"
+// 											placeholder='2000'
+// 											name='hoa'
+// 											onChange={handleChange}
+// 											defaultValue={listing?.hoa}
+// 										/>
+// 									</div>
+// 								</div>
+// 								<div className='flex flex-col gap-2 pt-4'>
+// 									<h2 className='text-lg text-slate-500'>Description</h2>
+// 									<Textarea
+// 										placeholder='Write a brief description of the property...'
+// 										name='description'
+// 										onChange={handleChange}
+// 										defaultValue={listing?.description}
+// 									/>
+// 								</div>
+// 								<div className='pt-4 '>
+// 									<h2 className='font-lg text-gray-500 my-2'>Upload Property Images</h2>
+// 									<FileUpload
+// 										setImages={(value: any) => setImages(value)}
+// 										imageList={listing.listingImages || []}
+// 									/>
+// 								</div>
+// 								<div className='flex gap-7 justify-end mt-4'>
+// 									<Button disabled={loading} variant={"outline"} className='text-gray-500'>
+// 										{loading ? <Spinner /> : 'Save '}
+// 									</Button>
+									
+
+// 									<AlertDialog>
+// 										<AlertDialogTrigger asChild>
+// 											<Button type='button' disabled={loading} className='text-gray-200'>
+// 												{loading ? <Spinner /> : 'Save & Publish'}
+// 											</Button>
+// 										</AlertDialogTrigger>
+// 										<AlertDialogContent>
+// 											<AlertDialogHeader>
+// 												<AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+// 												<AlertDialogDescription>
+// 													Are you sure you want to list this property?
+// 												</AlertDialogDescription>
+// 											</AlertDialogHeader>
+// 											<AlertDialogFooter>
+// 												<AlertDialogCancel>Cancel</AlertDialogCancel>
+// 												<AlertDialogAction
+// 													onClick={() =>publishBtnhandler()}
+// 												>
+// 													{loading ? <Spinner /> : "Continue"}
+// 													</AlertDialogAction>
+// 											</AlertDialogFooter>
+// 										</AlertDialogContent>
+// 									</AlertDialog>
+// 								</div>
+// 							</div>
+// 						</form>
+// 					)}
+// 				</Formik>
+// 			</div>
+// 		</div>
+// 	)
+// }

@@ -18,6 +18,9 @@ export default function ListingMapView({type} : { type: any}) {
 			.eq('type', type)
 			.order('id', {ascending: false})
 
+		console.log("✅ TODOS los listings activos:", data); // Agregar este log
+		console.log("🔍 Filtro aplicado - type:", type); // Agregar este log
+		
 		if (data) {
 			setListing(data);
 		}
@@ -35,7 +38,7 @@ export default function ListingMapView({type} : { type: any}) {
 		console.log("searchedAddress ada",searchedAddress);
 		
 		const searchTerm = searchedAddress?.value?.structured_formatting?.main_text;
-		console.log(searchTerm);
+		console.log("searchTerm", searchTerm);
 		// 3:15:38
 		const { data, error } = await supabase
 			.from('listing')

@@ -3,6 +3,7 @@ import Image from 'next/image'
 import React, { useState } from 'react'
 import GoogleAddressSearch from './GoogleAddressSearch'
 import { Button } from '@/components/ui/button'
+import FilterSection from './FilterSection'
 
 export default function Listing({ 
 	listing, 
@@ -11,7 +12,9 @@ export default function Listing({
 }: {
 	listing: any, handleSearchClick: () => void, searchedAddress :any}) {
 	const [address, setAddress] = useState<any>();
-	console.log(address);
+	console.log("[addresss in Listing]",address);
+	console.log("[listing in Listing]", listing);
+	
 	
   return (
 	<div>
@@ -30,13 +33,18 @@ export default function Listing({
 			
 			> <Search className='w-4 h-4'/> Search</Button>
 		</div>
-		{address &&<div>
-				Found {listing?.length} Result in {address?.label}
+		<div>
+			<FilterSection />
+		</div>
+		{address &&<div className='px-3 my-5'>
+				<h2 className='text-lg'>
+					Found <span className='font-bold'>{listing?.length}</span>  Result in  <span className='text-primary font-bold'>{address?.label}</span> 	
+				</h2>
 		</div>}
 		<div className='grid grid-cols-1 md:grid-cols-2 gap-10'>
 			{listing?.length>0? listing.map((item : any, index : string) => (
 				<div key={index} className='p-3 hover:border hover:border-gray-600 cursor-pointer rounded-lg'>
-					<Image src={item.listingImages[0].url} 
+					<Image src={item.listingImages[0].url || ''} 
 						width={800}
 						height={150}
 						className='rounded-lg object-cover h-[170px]'
