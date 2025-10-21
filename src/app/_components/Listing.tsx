@@ -8,7 +8,11 @@ import FilterSection from './FilterSection'
 export default function Listing({ 
 	listing, 
 	handleSearchClick, 
-	searchedAddress 
+	searchedAddress,
+	setBedCount,
+	setBathCount,
+	setParkingCount,
+	setHomeType
 }: {
 	listing: any, handleSearchClick: () => void, searchedAddress :any}) {
 	const [address, setAddress] = useState<any>();
@@ -33,8 +37,13 @@ export default function Listing({
 			
 			> <Search className='w-4 h-4'/> Search</Button>
 		</div>
-		<div>
-			<FilterSection />
+		<div className=''>
+			<FilterSection 
+				setBedCount={setBedCount}
+				setBathCount={setBathCount}
+				setParkingCount={setParkingCount}
+				setHomeType={setHomeType}
+			/>
 		</div>
 		{address &&<div className='px-3 my-5'>
 				<h2 className='text-lg'>
